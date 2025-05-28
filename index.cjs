@@ -1,3 +1,8 @@
+// Tambahkan polyfill untuk crypto
+if (globalThis.crypto === undefined) {
+    globalThis.crypto = require('node-webcrypto-ossl');
+  }
+
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const P = require('pino');
