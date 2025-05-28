@@ -3,7 +3,7 @@ if (typeof globalThis.crypto === 'undefined') {
     const { webcrypto } = require('crypto');
     globalThis.crypto = webcrypto;
   }
-  
+      
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const P = require('pino');
@@ -17,25 +17,31 @@ async function startBot() {
         auth: state
     });
 
-    // Tampilkan QR jika ada
-    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    const fs = require('fs');
+    const path = require('path');
+    const qrcode = require('qrcode');
+
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
         if (qr) {
-            console.log("🔍 Scan QR ini dengan WhatsApp:");
-            qrcode.generate(qr, { small: true });
+            console.log("📌 QR Terdeteksi. Mengenerate file PNG...");
+            // Simpan QR ke file
+            const qrPath = path.join(__dirname, 'qr.png');
+            await qrcode.toFile(qrPath, qr);
+
+            console.log("✅ QR Code berhasil dibuat: qr.png");
+            // Kirim instruksi ke user
+            console.log("⚠️ Unduh QR ini dari file output atau tampilkan di server lokal.");
         }
 
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) {
-                console.log("🔁 Terputus. Mencoba reconnect...");
-                startBot();
-            } else {
-                console.log("❌ Logout permanen. Jalankan ulang bot dan scan QR lagi.");
-            }
+            console.log('❌ Terputus.');
         } else if (connection === 'open') {
-            console.log("✅ Bot terhubung ke WhatsApp!");
+            console.log('✅ Bot sudah login!');
         }
     });
+
 
     // Simpan sesi login saat diperbarui
     sock.ev.on('creds.update', saveCreds);
