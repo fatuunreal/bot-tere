@@ -1,8 +1,9 @@
-// Tambahkan polyfill untuk crypto
-if (globalThis.crypto === undefined) {
-    globalThis.crypto = require('node-webcrypto-ossl');
+// Tambahkan fallback jika globalThis.crypto belum ada (khusus Node 18 ke bawah)
+if (typeof globalThis.crypto === 'undefined') {
+    const { webcrypto } = require('crypto');
+    globalThis.crypto = webcrypto;
   }
-
+  
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const P = require('pino');
