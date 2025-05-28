@@ -1,13 +1,15 @@
-// Tambahkan fallback jika globalThis.crypto belum ada (khusus Node 18 ke bawah)
+// Tambahkan fallback untuk Node 18 agar ada crypto.subtle
 if (typeof globalThis.crypto === 'undefined') {
     const { webcrypto } = require('crypto');
     globalThis.crypto = webcrypto;
-  }
-      
+}
+
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
-const qrcode = require('qrcode-terminal');
 const P = require('pino');
 const { Boom } = require('@hapi/boom');
+const fs = require('fs');
+const path = require('path');
+const qrcode = require('qrcode'); // hanya gunakan ini, bukan qrcode-terminal
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -17,36 +19,36 @@ async function startBot() {
         auth: state
     });
 
-    const fs = require('fs');
-    const path = require('path');
-    const qrcode = require('qrcode');
-
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log("📌 QR Terdeteksi. Mengenerate file PNG...");
-            // Simpan QR ke file
             const qrPath = path.join(__dirname, 'qr.png');
-            await qrcode.toFile(qrPath, qr);
-
-            console.log("✅ QR Code berhasil dibuat: qr.png");
-            // Kirim instruksi ke user
-            console.log("⚠️ Unduh QR ini dari file output atau tampilkan di server lokal.");
+            try {
+                await qrcode.toFile(qrPath, qr);
+                console.log("✅ QR Code berhasil dibuat di:", qrPath);
+            } catch (err) {
+                console.error("❌ Gagal membuat QR:", err);
+            }
         }
 
         if (connection === 'close') {
-            console.log('❌ Terputus.');
-        } else if (connection === 'open') {
-            console.log('✅ Bot sudah login!');
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            if (shouldReconnect) {
+                console.log("🔄 Koneksi terputus. Reconnecting...");
+                startBot();
+            } else {
+                console.log("❌ Logout permanen. Harus scan ulang.");
+            }
+        }
+
+        if (connection === 'open') {
+            console.log("✅ Bot sudah login ke WhatsApp!");
         }
     });
 
-
-    // Simpan sesi login saat diperbarui
     sock.ev.on('creds.update', saveCreds);
 
-    // ✅ Forward semua pesan masuk secara asli
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message || msg.key.fromMe) return;
@@ -55,9 +57,9 @@ async function startBot() {
 
         try {
             await sock.sendMessage(from, { forward: msg });
-            console.log('✅ Pesan diforward secara asli');
+            console.log("📨 Pesan berhasil diforward!");
         } catch (err) {
-            console.error('❌ Gagal forward:', err);
+            console.error("❌ Gagal forward pesan:", err);
         }
     });
 }
